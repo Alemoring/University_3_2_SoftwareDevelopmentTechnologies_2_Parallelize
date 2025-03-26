@@ -1,7 +1,5 @@
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.BlockingQueue;
-import java.util.Collections;
-import java.util.PriorityQueue;
 
 public class Main {
     private static final int N = 10;
@@ -12,8 +10,6 @@ public class Main {
         BlockingQueue<Integer> firstBuffer = new LinkedBlockingQueue<>(N);
         // Второй буфер для результатов x/1000
         BlockingQueue<Integer> secondBuffer = new LinkedBlockingQueue<>(N);
-        // Приоритетная очередь для сортировки чисел из второго буфера в порядке убывания
-        PriorityQueue<Integer> sortedBuffer = new PriorityQueue<>(Collections.reverseOrder());
 
         // Поток 1: Генерация чисел и помещение в первый буфер
         Thread firstThread = new Thread(() -> {
@@ -21,7 +17,9 @@ public class Main {
                 int number = 100000 - i * 1000;
                 try {
                     firstBuffer.put(number);
-                    System.out.println("Первый поток добавил к первому буферу: " + number);
+                    synchronized (System.out) {
+                        System.out.println("Первый поток добавил к первому буферу: " + number);
+                    }
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                     System.err.println("Первый поток поток завершился с ошибкой");
@@ -37,8 +35,10 @@ public class Main {
                 try {
                     int x = firstBuffer.take();
                     int result = x / 1000;
+                    synchronized (System.out) {
+                        System.out.println("Второй поток получил: " + x + " -> " + result);
+                    }
                     secondBuffer.put(result);
-                    System.out.println("Второй поток получил: " + x + " -> " + result);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                     System.err.println("Второй поток завершил работу с ошибкой");
@@ -52,22 +52,21 @@ public class Main {
         Thread thirdThread = new Thread(() -> {
             for (int i = 0; i < NUMBERS_COUNT; i++) {
                 try {
+                    int max = Integer.MIN_VALUE;
                     int number = secondBuffer.take();
-                    sortedBuffer.add(number);
-                    System.out.println("Третий поток добавил число во второй поток: " + number);
+                    if (number > max) {
+                        max = number;
+                        synchronized (System.out) {
+                            System.out.println("Наибольшее число в буфере: " + max);
+                        }
+                    }
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                     System.err.println("Третий поток завершился с ошибкой");
                     return;
                 }
             }
-
-            // Вывод чисел в порядке убывания
-            System.out.println("Сортированные результаты работы третьего потока:");
-            while (!sortedBuffer.isEmpty()) {
-                System.out.println(sortedBuffer.poll());
-            }
-            System.out.println("Третий поток окончил вывод чисел.");
+            System.out.println("Третий поток завершил работу");
         });
 
         // Запуск всех потоков
